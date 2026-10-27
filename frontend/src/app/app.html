@@ -1,0 +1,251 @@
+<main class="page-shell">
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Pennywise home">
+      <span class="brand-mark">$</span>
+      <span>Pennywise</span>
+    </a>
+    <span class="topbar-label">PERSONAL FINANCE</span>
+  </header>
+
+  <section class="welcome">
+    <div>
+      <p class="eyebrow">YOUR MONEY, IN FOCUS</p>
+      <h1>Expense tracker</h1>
+      <p class="subtitle">A clearer picture of where your money goes.</p>
+    </div>
+    <div class="date-chip">{{ todayLabel }}</div>
+  </section>
+
+  @if (error()) {
+    <div class="error-banner" role="alert">{{ error() }}</div>
+  }
+
+  <section class="summary-grid" aria-label="Spending overview">
+    <article class="summary-card total-card">
+      <div class="card-topline">
+        <span class="card-label">TOTAL SPENDING</span>
+        <span class="card-icon">$</span>
+      </div>
+      <p class="total-amount">{{ summary().total | currency:'CAD' }}</p>
+      <p class="card-note">Across all recorded expenses</p>
+    </article>
+
+    <article class="summary-card">
+      <div class="card-topline">
+        <span class="card-label">TRANSACTIONS</span>
+        <span class="card-icon">↗</span>
+      </div>
+      <p class="metric-amount">{{ expenses().length }}</p>
+      <p class="card-note">Recorded expenses</p>
+    </article>
+
+    <article class="summary-card">
+      <div class="card-topline">
+        <span class="card-label">TOP CATEGORY</span>
+        <span class="card-icon">◈</span>
+      </div>
+      <p class="metric-amount category-title">
+        {{ categoryEntries().length ? categoryEntries()[0].name : '—' }}
+      </p>
+      <p class="card-note">
+        @if (categoryEntries().length) {
+          {{ categoryEntries()[0].amount | currency:'CAD' }} spent
+        } @else {
+          Your breakdown will appear here
+        }
+      </p>
+    </article>
+  </section>
+
+  <section class="content-grid">
+    <article class="panel form-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">NEW TRANSACTION</p>
+          <h2>Add an expense</h2>
+        </div>
+        <span class="heading-icon">＋</span>
+      </div>
+
+      <form (ngSubmit)="addExpense()" #expenseForm="ngForm">
+        <div class="field">
+          <label for="description">Description</label>
+          <input
+            id="description"
+            name="description"
+            type="text"
+            placeholder="e.g. Weekly groceries"
+            [(ngModel)]="form.description"
+            required
+            maxlength="120"
+          />
+        </div>
+
+        <div class="field">
+          <label for="amount">Amount (CAD)</label>
+          <div class="amount-input">
+            <span>$</span>
+            <input
+              id="amount"
+              name="amount"
+              type="number"
+              placeholder="0.00"
+              [(ngModel)]="form.amount"
+              min="0.01"
+              max="1000000"
+              step="0.01"
+              required
+            />
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="category">Category</label>
+            <select
+              id="category"
+              name="category"
+              [(ngModel)]="form.category"
+              required
+            >
+              @for (category of categories; track category) {
+                <option [value]="category">{{ category }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="date">Date</label>
+            <input
+              id="date"
+              name="date"
+              type="date"
+              [(ngModel)]="form.date"
+              required
+            />
+          </div>
+        </div>
+
+        <button
+          class="primary-button"
+          type="submit"
+          [disabled]="expenseForm.invalid || saving()"
+        >
+          {{ saving() ? 'Adding expense…' : '+ Add expense' }}
+        </button>
+      </form>
+    </article>
+
+    <article class="panel breakdown-panel">
+      <div class="panel-heading">
+        <div>
+          <p class="eyebrow">SPENDING HABITS</p>
+          <h2>By category</h2>
+        </div>
+        <span class="heading-icon">◔</span>
+      </div>
+
+      @if (loading()) {
+        <p class="empty-state">Loading your spending…</p>
+      } @else if (categoryEntries().length === 0) {
+        <div class="empty-state">
+          <span class="empty-icon">◌</span>
+          <p>No spending to break down yet.</p>
+          <span>Add your first expense to get started.</span>
+        </div>
+      } @else {
+        <div class="category-list">
+          @for (item of categoryEntries(); track item.name) {
+            <div class="category-item">
+              <div class="category-meta">
+                <span>{{ item.name }}</span>
+                <strong>{{ item.amount | currency:'CAD' }}</strong>
+              </div>
+              <div
+                class="progress-track"
+                role="progressbar"
+                [attr.aria-label]="item.name + ' share of spending'"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                [attr.aria-valuenow]="categoryPercent(item.amount)"
+              >
+                <div
+                  class="progress-fill"
+                  [style.width.%]="categoryPercent(item.amount)"
+                ></div>
+              </div>
+            </div>
+          }
+        </div>
+      }
+    </article>
+  </section>
+
+  <section class="panel transactions-panel">
+    <div class="panel-heading transactions-heading">
+      <div>
+        <p class="eyebrow">YOUR ACTIVITY</p>
+        <h2>Recent expenses</h2>
+      </div>
+      <span class="transaction-count">{{ expenses().length }} total</span>
+    </div>
+
+    @if (loading()) {
+      <p class="empty-state">Loading transactions…</p>
+    } @else if (expenses().length === 0) {
+      <div class="empty-state">
+        <span class="empty-icon">▤</span>
+        <p>No expenses yet.</p>
+        <span>Your transactions will show up here after you add one.</span>
+      </div>
+    } @else {
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">DESCRIPTION</th>
+              <th scope="col">CATEGORY</th>
+              <th scope="col">DATE</th>
+              <th scope="col" class="amount-column">AMOUNT</th>
+              <th scope="col"><span class="visually-hidden">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (expense of expenses(); track expense.id) {
+              <tr>
+                <td>
+                  <div class="expense-description">
+                    <span class="expense-avatar">
+                      {{ expense.description.charAt(0).toUpperCase() }}
+                    </span>
+                    <strong>{{ expense.description }}</strong>
+                  </div>
+                </td>
+                <td>
+                  <span class="category-pill">{{ expense.category }}</span>
+                </td>
+                <td class="date-cell">{{ expense.date | date:'mediumDate' }}</td>
+                <td class="amount-column expense-amount">
+                  {{ expense.amount | currency:'CAD' }}
+                </td>
+                <td class="action-column">
+                  <button
+                    class="delete-button"
+                    type="button"
+                    [attr.aria-label]="'Delete ' + expense.description"
+                    (click)="deleteExpense(expense)"
+                  >×</button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
+  <footer class="footer">
+    <span>Pennywise · Built to bring clarity to your spending.</span>
+    <span>Expense data is stored in memory for this prototype.</span>
+  </footer>
+</main>
